@@ -135,7 +135,7 @@ const first = (object, keys, fallback = null) => {
 
 function unwrapCollection(payload) {
   if (Array.isArray(payload)) return payload;
-  return first(payload, ["vehicles", "trips", "Trip", "items", "data", "results", "value"], []);
+  return first(payload, ["VehicleTrip.TripData", "vehicles", "trips", "Trip", "items", "data", "results", "value"], null);
 }
 
 function unwrapDetail(payload) {
@@ -143,13 +143,13 @@ function unwrapDetail(payload) {
 }
 
 function normalizeVehicle(raw, previous = {}) {
-  const tripId = first(raw, ["tripId", "tripID", "id", "TripId", "trip.id"], previous.tripId);
-  const vehicleNumber = first(raw, ["vehicleNumber", "vehicleNo", "vehicleId", "vehicle.id", "VehicleNumber", "callName"], previous.vehicleNumber ?? tripId);
-  const line = first(raw, ["lineNumber", "line.number", "line.name", "line", "routeShortName", "publishedLineName", "LineNumber"], previous.line ?? "–");
-  const nextStop = first(raw, ["nextStop.name", "nextStopName", "nextStation.name", "onwardCalls.0.stop.name", "stops.0.name", "NextStop"], previous.nextStop ?? "Wird ermittelt …");
-  const destination = first(raw, ["destination.name", "destination", "headsign", "direction", "tripDestination", "Destination"], previous.destination ?? "Unbekannt");
-  const latitude = Number(first(raw, ["position.latitude", "position.lat", "location.latitude", "latitude", "lat", "Latitude"], previous.latitude));
-  const longitude = Number(first(raw, ["position.longitude", "position.lon", "position.lng", "location.longitude", "longitude", "lon", "lng", "Longitude"], previous.longitude));
+  const tripId = first(raw, ["VehicleNumber", "tripId", "tripID", "id", "TripId", "trip.id"], previous.tripId);
+  const vehicleNumber = first(raw, ["VehicleNumber", "vehicleNumber", "vehicleNo", "vehicleId", "vehicle.id", "callName"], previous.vehicleNumber ?? tripId);
+  const line = first(raw, ["JourneyData.RouteNumber", "lineNumber", "line.number", "line.name", "line", "routeShortName", "publishedLineName", "LineNumber"], previous.line ?? "–");
+  const nextStop = first(raw, ["nextStop.name", "nextStopName", "nextStation.name", "onwardCalls.0.stop.name", "stops.0.name", "NextStop"], previous.nextStop ?? "Nicht in Trip enthalten");
+  const destination = first(raw, ["JourneyData.DepartureDirectionText", "JourneyData.ArrivalDirectionText", "destination.name", "destination", "headsign", "direction", "tripDestination", "Destination"], previous.destination ?? "Unbekannt");
+  const latitude = Number(first(raw, ["PositionData.Latitude", "position.latitude", "position.lat", "location.latitude", "latitude", "lat", "Latitude"], previous.latitude));
+  const longitude = Number(first(raw, ["PositionData.Longitude", "position.longitude", "position.lon", "position.lng", "location.longitude", "longitude", "lon", "lng", "Longitude"], previous.longitude));
   const links = raw?._links ?? {};
   const detailUrl = first(raw, ["detailUrl", "href", "_links.self.href", "links.self"], previous.detailUrl);
 
@@ -164,6 +164,7 @@ function normalizeVehicle(raw, previous = {}) {
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null,
     detailUrl: detailUrl ?? links.trip?.href ?? null,
+    isActive: raw.IsActive ?? previous.isActive ?? true,
   };
 }
 
@@ -224,9 +225,9 @@ async function refreshList() {
   setConnection("loading", "SWU wird abgefragt …");
   try {
     const rawVehicles = unwrapCollection(await fetchJson(TRIPS_ENDPOINT));
-    if (!Array.isArray(rawVehicles)) throw new Error("Unerwartetes Datenformat");
+    if (!Array.isArray(rawVehicles)) throw new Error("Die Antwort enthält kein VehicleTrip.TripData");
     const activeIds = new Set();
-    for (const raw of rawVehicles) {
+    for (const raw of rawVehicles.filter((vehicle) => vehicle.IsActive === true)) {
       const candidate = normalizeVehicle(raw);
       activeIds.add(candidate.tripId);
       state.vehicles.set(candidate.tripId, normalizeVehicle(raw, state.vehicles.get(candidate.tripId)));

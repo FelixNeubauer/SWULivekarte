@@ -150,6 +150,7 @@ footer span:first-child { margin-right: auto; }
 const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
 const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
 const STOP_POINTS_ENDPOINTS = [
+  "https://api.swu.de/mobility/v1/stoppoint/attributes/BaseData",
   "https://api.swu.de/mobility/v1/stop/StopPoint",
   "https://api.swu.de/mobility/v1/network/stop/StopPoint",
 ];
@@ -178,14 +179,28 @@ function unwrapPassages(payload) {
 
 function unwrapStopPoints(payload) {
   if (Array.isArray(payload)) return payload;
-  return first(payload, ["StopPoint.StopPointData", "PublicTransportStopPoint.StopPointData", "StopPointData", "stopPoints", "data"], []);
+function unwrapStopPoints(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["StopPointAttributes.StopPointData", "StopPoint.StopPointData", "StopPointData", "PublicTransportStopPoint.StopPointData", "stopPoints", "data"], []);
+}
+
+function stopPointKey(raw) {
+  const stopNumber = first(raw, ["ParentStop.StopNumber", "StopNumber"], null);
+  const platform = first(raw, ["PlatformName"], null);
+  if (stopNumber !== null && platform !== null) return `${stopNumber}:${platform}`;
+  return String(first(raw, ["StopPointCode", "StopPointNumber", "StopPointId", "Number", "Id"], ""));
 }
 
 function normalizeStopPoint(raw) {
-  const latitude = Number(first(raw, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude"], null));
-  const longitude = Number(first(raw, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude"], null));
+  const latitude = Number(first(raw, ["StopPointCoordinates.Latitude", "Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude"], null));
+  const longitude = Number(first(raw, ["StopPointCoordinates.Longitude", "Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude"], null));
   return {
-    id: String(first(raw, ["StopPointNumber", "StopPointId", "StopPointID", "Number", "Id"], "")),
+    id: stopPointKey(raw),
+    name: String(first(raw, ["StopPointName", "StopName", "Name"], "Unbenannter Steig")),
+    latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
+    longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
+  };
+}
     name: String(first(raw, ["StopPointName", "StopName", "Name"], "Unbenannter Steig")),
     latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
     longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
@@ -206,7 +221,7 @@ function findNextStop(payload, now = new Date()) {
   const latitude = Number(first(next, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude", "StopPointData.Latitude", "StopPointData.PositionData.Latitude"], null));
   const longitude = Number(first(next, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude", "StopPointData.Longitude", "StopPointData.PositionData.Longitude"], null));
   return {
-    id: String(first(next, ["StopPointNumber", "StopPointId", "StopPointID", "StopPoint.StopPointNumber", "StopPointData.StopPointNumber"], "")),
+    id: stopPointKey(next),
     name,
     latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
     longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
@@ -304,6 +319,9 @@ function initMap() {
 async function loadAllStopPoints() {
   if (state.stopPointsLoading || state.allStops.length) return;
   state.stopPointsLoading = true;
+async function loadAllStopPoints() {
+  if (state.stopPointsLoading || state.allStops.length) return;
+  state.stopPointsLoading = true;
   let lastError;
   try {
     for (const endpoint of STOP_POINTS_ENDPOINTS) {
@@ -318,6 +336,10 @@ async function loadAllStopPoints() {
       } catch (error) { lastError = error; }
     }
     elements["map-info"].textContent = `Steige konnten nicht geladen werden: ${lastError?.message ?? "Unbekannter Fehler"}`;
+  } catch (error) {
+    elements["map-info"].textContent = `Steige konnten nicht geladen werden: ${error.message}`;
+  } finally { state.stopPointsLoading = false; }
+}
   } finally { state.stopPointsLoading = false; }
 }
 

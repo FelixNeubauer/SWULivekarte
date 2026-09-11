@@ -43,7 +43,10 @@ h1 { margin: 0; font: 800 clamp(36px, 5vw, 58px)/1 Manrope; letter-spacing: -.04
 .network-plan { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; }
 .stop-overlay { position: absolute; inset: 0; }
 .map-info { position: absolute; z-index: 500; top: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 22px; background: #091521e8; color: #dce5ea; box-shadow: 0 8px 28px #0004; font-size: 12px; pointer-events: none; }
-.stop-ring { --lamp: var(--yellow); position: absolute; z-index: 2; width: 11px; height: 11px; padding: 0; transform: translate(-50%, -50%); border: 2px solid #263e4d; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #fff; }
+.stop-ring { --lamp: var(--yellow); position: absolute; z-index: 2; width: 11px; height: 11px; padding: 0; transform: translate(-50%, -50%); border: 2px solid #263e4d; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #fff; cursor: grab; touch-action: none; }
+.stop-ring:active { cursor: grabbing; }
+.stop-ring:hover { z-index: 8; }
+.stop-ring:hover::before { content: attr(data-name); position: absolute; left: 50%; bottom: calc(100% + 8px); width: max-content; max-width: 230px; padding: 6px 9px; transform: translateX(-50%); border-radius: 6px; background: #091521ed; color: #fff; box-shadow: 0 5px 18px #0005; font: 600 10px/1.35 "DM Sans", sans-serif; pointer-events: none; }
 .stop-ring.active { z-index: 4; width: 17px; height: 17px; border: 3px solid #fff; background: var(--lamp); box-shadow: 0 0 0 6px color-mix(in srgb, var(--lamp) 28%, transparent), 0 0 25px 8px var(--lamp); animation: lamp 1.8s ease-in-out infinite; cursor: pointer; }
 .stop-ring.active::after { content: attr(data-count); position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink); font: 800 8px Manrope; }
 .stop-popup { position: absolute; z-index: 10; max-width: 240px; padding: 10px 12px; border-radius: 8px; background: var(--panel); color: white; box-shadow: 0 8px 25px #0007; font-size: 11px; line-height: 1.45; transform: translate(10px, -50%); }
@@ -133,7 +136,7 @@ footer span:first-child { margin-right: auto; }
             <div id="stop-overlay" class="stop-overlay"></div>
           </div>
         </div>
-        <div id="map-info" class="map-info">Steige werden geladen</div>
+        <div id="map-info" class="map-info">Steige werden geladen · Ringe können verschoben werden</div>
       </section>
 
       <footer>
@@ -186,6 +189,7 @@ const SCHEMATIC_POSITIONS = {
   "Wiley Süd": [70.8, 75.0], "Washingtonallee": [72.2, 72.3], "Grethe-Weiser-Straße": [68.2, 68.8],
 };
 const UNMAPPED_POSITION = [94.2, 49.5];
+const POSITION_STORAGE_KEY = "swu-stop-point-positions-v1";
 
 const first = (object, keys, fallback = null) => {
   for (const key of keys) {
@@ -298,7 +302,7 @@ async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
 const LIST_INTERVAL = 60_000;
 const DETAIL_INTERVAL = 10_000;
 const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info", "stop-overlay"].map((id) => [id, document.getElementById(id)]));
-const state = { vehicles: new Map(), loading: false, detailLoading: false, allStops: [], stopPointsLoading: false, rings: new Map() };
+const state = { vehicles: new Map(), loading: false, detailLoading: false, allStops: [], stopPointsLoading: false, rings: new Map(), customPositions: loadCustomPositions() };
 
 function lineColor(line) {
   const colors = ["#ffca0a", "#39b8ff", "#f47531", "#92d13d", "#e9559a", "#ad8cff"];
@@ -362,7 +366,10 @@ function renderAllStopPoints() {
     ring.className = "stop-ring";
     ring.style.left = `${x}%`;
     ring.style.top = `${y}%`;
+    ring.dataset.name = stop.name;
+    ring.dataset.stopId = stop.id;
     ring.tabIndex = -1;
+    makeRingDraggable(ring, stop);
     elements["stop-overlay"].append(ring);
     state.rings.set(stop.id, ring);
   }
@@ -370,6 +377,8 @@ function renderAllStopPoints() {
 }
 
 function schematicPosition(stop) {
+  const custom = state.customPositions[stop.id];
+  if (Array.isArray(custom) && custom.length === 2) return custom;
   const name = canonicalStopName(stop.parentName);
   const exact = SCHEMATIC_POSITIONS[name];
   if (exact) return exact;
@@ -379,6 +388,45 @@ function schematicPosition(stop) {
     return name.endsWith(normalizedCandidate) || normalizedCandidate.endsWith(name);
   });
   return fuzzy?.[1] ?? UNMAPPED_POSITION;
+}
+
+function loadCustomPositions() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(POSITION_STORAGE_KEY) || "{}");
+    return stored && typeof stored === "object" ? stored : {};
+  } catch { return {}; }
+}
+
+function saveCustomPositions() {
+  try { localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(state.customPositions)); } catch { /* Speicher kann deaktiviert sein. */ }
+}
+
+function makeRingDraggable(ring, stop) {
+  let moved = false;
+  ring.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    moved = false;
+    ring.setPointerCapture(event.pointerId);
+  });
+  ring.addEventListener("pointermove", (event) => {
+    if (!ring.hasPointerCapture(event.pointerId)) return;
+    const bounds = elements["stop-overlay"].getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
+    const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
+    ring.style.left = `${x}%`;
+    ring.style.top = `${y}%`;
+    state.customPositions[stop.id] = [Number(x.toFixed(3)), Number(y.toFixed(3))];
+    moved = true;
+  });
+  ring.addEventListener("pointerup", (event) => {
+    if (!ring.hasPointerCapture(event.pointerId)) return;
+    ring.releasePointerCapture(event.pointerId);
+    if (moved) {
+      ring.dataset.wasDragged = "true";
+      saveCustomPositions();
+      elements["map-info"].textContent = `${stop.name} · Position gespeichert`;
+    }
+  });
 }
 
 function canonicalStopName(name) {
@@ -412,7 +460,10 @@ function renderStopLamps() {
     ring.style.setProperty("--lamp", color);
     ring.dataset.count = stop.vehicles.length;
     ring.tabIndex = 0;
-    ring.onclick = () => showStopPopup(ring, `<strong>${escapeHtml(stop.name)}</strong><br>${details}`);
+    ring.onclick = () => {
+      if (ring.dataset.wasDragged) { delete ring.dataset.wasDragged; return; }
+      showStopPopup(ring, `<strong>${escapeHtml(stop.name)}</strong><br>${details}`);
+    };
   }
   const base = state.allStops.length ? `${state.allStops.length} Steige` : "Steige werden geladen";
   elements["map-info"].textContent = `${base} · ${stops.size} davon leuchten`;

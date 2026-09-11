@@ -124,6 +124,7 @@ footer span:first-child { margin-right: auto; }
 
     <script>
 const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
+const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
 
 const first = (object, keys, fallback = null) => {
   for (const key of keys) {
@@ -142,10 +143,27 @@ function unwrapDetail(payload) {
   return first(payload, ["vehicle", "trip", "Trip", "data", "result"], payload);
 }
 
+function unwrapPassages(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["VehicleTrip.PassageData", "VehiclePassage.PassageData", "Passage.PassageData", "PassageData", "passages", "data"], []);
+}
+
+function findNextStop(payload, now = new Date()) {
+  const passages = unwrapPassages(payload);
+  if (!Array.isArray(passages)) return null;
+
+  const next = passages
+    .map((passage) => ({ passage, departure: new Date(first(passage, ["DepartureTimeActual", "TimeData.DepartureTimeActual"], "")) }))
+    .filter(({ departure }) => !Number.isNaN(departure.getTime()) && departure >= now)
+    .sort((a, b) => a.departure - b.departure)[0]?.passage;
+
+  return next ? first(next, ["StopPointName", "StopName", "StopPointData.StopPointName", "StopData.StopName", "Stop.Name", "StationName", "Name"], null) : null;
+}
+
 function normalizeVehicle(raw, previous = {}) {
   const tripId = first(raw, ["VehicleNumber", "tripId", "tripID", "id", "TripId", "trip.id"], previous.tripId);
   const vehicleNumber = first(raw, ["VehicleNumber", "vehicleNumber", "vehicleNo", "vehicleId", "vehicle.id", "callName"], previous.vehicleNumber ?? tripId);
-  const line = first(raw, ["JourneyData.RouteNumber", "lineNumber", "line.number", "line.name", "line", "routeShortName", "publishedLineName", "LineNumber"], previous.line ?? "–");
+  const line = first(raw, ["JourneyData.RouteName", "JourneyData.RouteNumber", "lineNumber", "line.number", "line.name", "line", "routeShortName", "publishedLineName", "LineNumber"], previous.line ?? "–");
   const nextStop = first(raw, ["nextStop.name", "nextStopName", "nextStation.name", "onwardCalls.0.stop.name", "stops.0.name", "NextStop"], previous.nextStop ?? "Nicht in Trip enthalten");
   const destination = first(raw, ["JourneyData.DepartureDirectionText", "JourneyData.ArrivalDirectionText", "destination.name", "destination", "headsign", "direction", "tripDestination", "Destination"], previous.destination ?? "Unbekannt");
   const latitude = Number(first(raw, ["PositionData.Latitude", "position.latitude", "position.lat", "location.latitude", "latitude", "lat", "Latitude"], previous.latitude));
@@ -169,7 +187,8 @@ function normalizeVehicle(raw, previous = {}) {
 }
 
 function detailEndpoint(vehicle) {
-  return `${TRIPS_ENDPOINT}/${encodeURIComponent(vehicle.tripId)}`;
+  const query = new URLSearchParams({ VehicleNumber: vehicle.vehicleNumber, Range: "upcoming" });
+  return `${PASSAGES_ENDPOINT}?${query}`;
 }
 
 async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
@@ -254,7 +273,10 @@ async function refreshDetails() {
   state.detailLoading = true;
   const vehicles = [...state.vehicles.values()];
   try {
-    const results = await Promise.allSettled(vehicles.map(async (vehicle) => normalizeVehicle(unwrapDetail(await fetchJson(detailEndpoint(vehicle))), vehicle)));
+    const results = await Promise.allSettled(vehicles.map(async (vehicle) => {
+      const nextStop = findNextStop(await fetchJson(detailEndpoint(vehicle)));
+      return { ...vehicle, nextStop: nextStop ?? "Keine kommende Passage gemeldet" };
+    }));
     results.forEach((result, index) => {
       if (result.status === "fulfilled") state.vehicles.set(vehicles[index].tripId, result.value);
     });

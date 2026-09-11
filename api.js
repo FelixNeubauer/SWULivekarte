@@ -1,4 +1,4 @@
-export const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
+export const TRIPS_ENDPOINT = "/api/trips";
 
 const first = (object, keys, fallback = null) => {
   for (const key of keys) {
@@ -43,11 +43,10 @@ export function normalizeVehicle(raw, previous = {}) {
 }
 
 export function detailEndpoint(vehicle) {
-  if (vehicle.detailUrl) return new URL(vehicle.detailUrl, TRIPS_ENDPOINT).href;
   return `${TRIPS_ENDPOINT}/${encodeURIComponent(vehicle.tripId)}`;
 }
 
-export async function fetchJson(url, signal) {
+export async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
   const response = await fetch(url, { signal, headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();

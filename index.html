@@ -157,15 +157,33 @@ const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
 const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
 const STOP_POINTS_ENDPOINT = "https://api.swu.de/mobility/v1/stoppoint/attributes/BaseData";
 const SCHEMATIC_POSITIONS = {
-  "Hauptbahnhof": [50.7, 37.4], "ZOB": [45.2, 39.0], "Ehinger Tor": [45.2, 43.0],
-  "Theodor-Heuss-Platz": [37.3, 39.4], "Söflingen": [28.1, 39.9], "Kuhberg Schulzentrum": [29.0, 54.2],
-  "Wissenschaftsstadt": [39.0, 23.0], "Universität Süd": [43.7, 23.6], "Science Park II": [27.0, 18.6],
-  "Science Park III": [23.8, 16.0], "Böfingen Süd": [70.8, 20.5], "Böfingen": [85.0, 6.2],
-  "Willy-Brandt-Platz": [64.1, 37.0], "Donaustadion": [76.0, 37.1], "Donauhalle": [80.5, 31.5],
-  "Kasernstraße": [66.0, 49.2], "Wiblingen": [54.2, 59.5], "Ludwigsfeld": [62.8, 69.3], "Wiley": [75.4, 65.7],
-  "Jungingen": [56.0, 12.3], "Lehrer Feld": [49.2, 6.7], "Mähringen": [34.9, 8.7],
-  "Eselsberg Hasenkopf": [48.0, 27.4], "Blautal-Center": [29.8, 34.0], "Roter Berg": [14.8, 35.1],
-  "Grimmelfingen": [26.5, 59.5], "Eggingen": [6.0, 59.5], "Dellmensingen": [8.5, 74.0], "Unterweiler": [58.0, 74.3],
+  "Hauptbahnhof": [50.3, 43.2], "ZOB": [46.2, 44.2], "Ehinger Tor": [45.1, 48.3],
+  "Theodor-Heuss-Platz": [37.6, 45.3], "Söflingen": [27.9, 44.8], "Kuhberg Schulzentrum": [28.5, 62.3],
+  "Wissenschaftsstadt": [38.8, 27.1], "Universität Süd": [43.6, 26.7], "Science Park II": [27.9, 20.1],
+  "Science Park III": [25.5, 17.9], "Böfingen Süd": [69.0, 22.5], "Böfingen": [83.7, 7.0],
+  "Willy-Brandt-Platz": [63.4, 42.1], "Donaustadion": [74.5, 44.7], "Donauhalle": [78.8, 36.6],
+  "Kasernstraße": [64.6, 56.8], "Wiblingen": [53.6, 66.1], "Ludwigsfeld": [62.8, 78.2], "Wiley": [74.5, 73.6],
+  "Jungingen": [57.3, 11.4], "Lehrer Feld": [49.7, 6.7], "Mähringen": [34.4, 8.5],
+  "Eselsberg Hasenkopf": [46.9, 29.9], "Blautal-Center": [30.2, 38.1], "Roter Berg": [9.0, 39.8],
+  "Grimmelfingen": [20.3, 67.6], "Eggingen": [5.6, 67.7], "Dellmensingen": [8.6, 85.0], "Unterweiler": [57.6, 85.5],
+
+  "Sonnenfeld": [23.6, 23.8], "Söflinger Weinberge": [19.5, 23.9], "Virchowstraße": [17.1, 26.1],
+  "Eselsbergsteige": [15.4, 29.0], "Ehrensteiner Feld": [15.5, 32.0], "Beim Türmle": [28.2, 32.0],
+  "Lupferbrücke": [28.2, 35.0], "S-Bahn-Halt Ulm-Söflingen": [28.2, 36.3], "Am Hetzenbäumele": [36.2, 35.1],
+  "Bleicher Hag": [43.9, 35.0], "Lehrer Tal": [50.0, 35.0], "Stadtwerke": [52.7, 39.0],
+  "Theater": [52.5, 45.0], "Justizgebäude": [56.9, 43.1], "Rosengasse": [58.1, 45.8],
+  "Hafengasse": [58.1, 48.0], "Haus der Begegnung": [58.1, 50.9], "Rathaus Ulm": [54.4, 50.9],
+  "Steinerne Brücke": [49.8, 51.0], "Congress Centrum": [65.0, 51.0], "Staufenring": [69.7, 43.1],
+  "Ostplatz": [62.9, 38.5], "Eichenplatz": [68.0, 28.4], "Eichberg": [68.6, 26.5], "Eichberg Nord": [68.2, 24.3],
+  "Safranberg": [65.8, 31.6], "Steinhövelstraße": [65.1, 33.5], "Orlinger Straße": [63.7, 35.4],
+  "Alfred-Delp-Weg": [78.7, 24.5], "Eugen-Bolz-Straße": [78.7, 30.3], "Wohnpark Friedrichsau": [74.3, 39.0],
+  "Haslacher Weg": [75.0, 19.4], "Thüringenweg": [78.2, 14.9], "Mecklenburgweg": [81.2, 10.7], "Ostpreußenweg": [84.0, 7.4],
+  "Gewerbeschulen Königstraße": [30.5, 57.5], "Saarlandstraße": [33.1, 53.8], "Grimmelfinger Weg": [35.8, 52.5],
+  "Martin-Luther-Kirche": [38.1, 49.4], "Römerplatz": [38.5, 51.5], "Magirusstraße": [35.0, 46.5],
+  "Königstraße": [29.7, 45.5], "Sedanstraße": [32.9, 49.6], "Haßlerstraße": [40.8, 53.6],
+  "Adenauerbrücke": [45.3, 56.0], "Donautal": [23.8, 82.8], "S-Bahn-Halt Ulm-Donautal": [27.3, 71.2],
+  "Illerbrücke": [49.5, 60.1], "Ostermähdweg": [53.5, 64.0], "Kloster Wiblingen": [53.8, 67.4],
+  "Wiley Süd": [70.8, 75.0], "Washingtonallee": [72.2, 72.3], "Grethe-Weiser-Straße": [68.2, 68.8],
 };
 const UNMAPPED_POSITION = [94.2, 49.5];
 

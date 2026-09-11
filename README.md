@@ -10,4 +10,6 @@ Die Antwort wird entsprechend dem SWU-Format aus `VehicleTrip.TripData` gelesen.
 
 Für jedes aktive Fahrzeug wird alle 10 Sekunden `Passage?VehicleNumber=…&Range=upcoming` geladen. Als nächste Haltestelle gilt die Passage mit der frühesten gültigen `DepartureTimeActual`, die nicht vor der aktuellen Uhrzeit liegt.
 
+Über den Reiter **Haltestellenkarte** steht zusätzlich eine OpenStreetMap-Karte bereit. Alle Steige mit Koordinaten, die gerade als nächste Haltestelle eines Fahrzeugs gemeldet sind, leuchten dort auf. Die Zahl im Lichtpunkt zeigt, wie viele Fahrzeuge denselben Steig als nächstes anfahren; ein Klick zeigt Linie und Fahrzeugnummer.
+
 > **Hinweis:** Direkte Browser-Abfragen funktionieren nur, wenn die SWU-API Cross-Origin-Zugriffe erlaubt. Falls der Browser eine CORS-Fehlermeldung zeigt, kann eine lokale HTML-Datei diese Sicherheitssperre technisch nicht umgehen; dann muss die Datei über einen kleinen Webserver/Proxy bereitgestellt werden.

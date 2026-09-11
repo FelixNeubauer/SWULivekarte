@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#091521" />
     <title>SWU Live-Fahrzeuge</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <style>
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap");
 
@@ -33,6 +34,17 @@ h1 { margin: 0; font: 800 clamp(36px, 5vw, 58px)/1 Manrope; letter-spacing: -.04
 .refresh.busy { opacity: .55; pointer-events: none; }
 .refresh.busy span { display: inline-block; animation: spin .8s linear infinite; }
 .list-shell { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px #0003; }
+.tabs { display: flex; gap: 7px; margin-bottom: 18px; padding: 5px; width: max-content; border: 1px solid var(--line); border-radius: 24px; background: #0c1a27; }
+.tab { padding: 9px 18px; border: 0; border-radius: 18px; background: transparent; color: var(--muted); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--yellow); color: var(--ink); font-weight: 700; }
+.view[hidden] { display: none; }
+.map-shell { position: relative; height: min(680px, calc(100vh - 285px)); min-height: 430px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #d7d4ca; }
+#map { width: 100%; height: 100%; }
+.map-info { position: absolute; z-index: 500; top: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 22px; background: #091521e8; color: #dce5ea; box-shadow: 0 8px 28px #0004; font-size: 12px; pointer-events: none; }
+.stop-lamp { background: transparent; border: 0; }
+.stop-lamp span { --lamp: var(--yellow); position: relative; display: grid; place-items: center; width: 25px; height: 25px; border: 4px solid #fff; border-radius: 50%; background: var(--lamp); color: var(--ink); box-shadow: 0 0 0 7px color-mix(in srgb, var(--lamp) 28%, transparent), 0 0 28px 8px var(--lamp); font: 800 10px Manrope; animation: lamp 1.8s ease-in-out infinite; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: white; }
+.leaflet-popup-content { line-height: 1.5; }
 .list-heading { min-height: 76px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; }
 .list-heading h2 { margin: 0; font: 700 20px Manrope; }
 .count { padding: 6px 11px; border-radius: 18px; background: #152b3a; color: var(--muted); font-size: 12px; }
@@ -57,6 +69,7 @@ footer { display: flex; gap: 26px; justify-content: flex-end; padding: 20px 4px 
 footer span:first-child { margin-right: auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: .35; } }
+@keyframes lamp { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--lamp) 12%, transparent), 0 0 38px 12px var(--lamp); } }
 @media (max-width: 760px) {
   .topbar { height: 66px; } .connection time { display: none; } .connection { font-size: 11px; }
   main { width: min(100% - 24px, 620px); } .intro { padding: 36px 4px 25px; align-items: start; gap: 24px; } .intro p:last-child { font-size: 13px; }
@@ -92,7 +105,12 @@ footer span:first-child { margin-right: auto; }
         <button id="refresh" class="refresh" type="button"><span aria-hidden="true">↻</span> Jetzt aktualisieren</button>
       </section>
 
-      <section class="list-shell" aria-labelledby="list-title">
+      <nav class="tabs" aria-label="Ansicht wählen">
+        <button class="tab" type="button" data-view="list-view" aria-selected="true">Fahrzeugliste</button>
+        <button class="tab" type="button" data-view="map-view" aria-selected="false">Haltestellenkarte</button>
+      </nav>
+
+      <section id="list-view" class="view list-shell" aria-labelledby="list-title">
         <div class="list-heading">
           <h2 id="list-title">Fahrzeugliste</h2>
           <span class="count"><strong id="vehicle-count">0</strong> aktiv</span>
@@ -104,6 +122,11 @@ footer span:first-child { margin-right: auto; }
         <div id="vehicles" class="vehicle-list" aria-live="polite" aria-busy="true">
           <div class="loading-row"><span class="spinner"></span><span>Verbindung zur SWU wird hergestellt …</span></div>
         </div>
+      </section>
+
+      <section id="map-view" class="view map-shell" aria-label="Karte der nächsten Haltestellen" hidden>
+        <div id="map"></div>
+        <div id="map-info" class="map-info">Noch keine nächsten Haltestellen mit Koordinaten</div>
       </section>
 
       <footer>
@@ -122,6 +145,7 @@ footer span:first-child { margin-right: auto; }
       </article>
     </template>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script>
 const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
 const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
@@ -157,7 +181,16 @@ function findNextStop(payload, now = new Date()) {
     .filter(({ departure }) => !Number.isNaN(departure.getTime()) && departure >= now)
     .sort((a, b) => a.departure - b.departure)[0]?.passage;
 
-  return next ? first(next, ["StopPointName", "StopName", "StopPointData.StopPointName", "StopData.StopName", "Stop.Name", "StationName", "Name"], null) : null;
+  if (!next) return null;
+  const name = first(next, ["StopPointName", "StopName", "StopPoint.StopPointName", "StopPoint.Name", "StopPointData.StopPointName", "StopData.StopName", "Stop.Name", "StationName", "Name"], null);
+  const latitude = Number(first(next, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude", "StopPointData.Latitude", "StopPointData.PositionData.Latitude"], null));
+  const longitude = Number(first(next, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude", "StopPointData.Longitude", "StopPointData.PositionData.Longitude"], null));
+  return {
+    name,
+    latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
+    longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
+    departureTimeActual: first(next, ["DepartureTimeActual", "TimeData.DepartureTimeActual"], null),
+  };
 }
 
 function normalizeVehicle(raw, previous = {}) {
@@ -201,8 +234,8 @@ async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
 
 const LIST_INTERVAL = 60_000;
 const DETAIL_INTERVAL = 10_000;
-const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update"].map((id) => [id, document.getElementById(id)]));
-const state = { vehicles: new Map(), loading: false, detailLoading: false };
+const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info"].map((id) => [id, document.getElementById(id)]));
+const state = { vehicles: new Map(), loading: false, detailLoading: false, map: null, stopLayer: null, mapFitted: false };
 
 function lineColor(line) {
   const colors = ["#ffca0a", "#39b8ff", "#f47531", "#92d13d", "#e9559a", "#ad8cff"];
@@ -235,6 +268,44 @@ function render() {
   elements["vehicle-count"].textContent = vehicles.length;
   elements.summary.textContent = `${vehicles.length} ${vehicles.length === 1 ? "Fahrzeug ist" : "Fahrzeuge sind"} derzeit im Liniennetz aktiv.`;
   elements.vehicles.setAttribute("aria-busy", "false");
+  renderStopLamps();
+}
+
+function initMap() {
+  if (state.map || !window.L) return;
+  state.map = L.map("map").setView([48.3984, 9.9916], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(state.map);
+  state.stopLayer = L.layerGroup().addTo(state.map);
+}
+
+function renderStopLamps() {
+  if (!state.map || !state.stopLayer) return;
+  state.stopLayer.clearLayers();
+  const stops = new Map();
+  for (const vehicle of state.vehicles.values()) {
+    if (!Number.isFinite(vehicle.nextStopLatitude) || !Number.isFinite(vehicle.nextStopLongitude)) continue;
+    const key = `${vehicle.nextStopLatitude.toFixed(6)},${vehicle.nextStopLongitude.toFixed(6)}`;
+    const stop = stops.get(key) ?? { name: vehicle.nextStop || "Unbekannte Haltestelle", latitude: vehicle.nextStopLatitude, longitude: vehicle.nextStopLongitude, vehicles: [] };
+    stop.vehicles.push(vehicle);
+    stops.set(key, stop);
+  }
+  for (const stop of stops.values()) {
+    const color = lineColor(stop.vehicles[0].line);
+    const icon = L.divIcon({ className: "stop-lamp", html: `<span style="--lamp:${color}">${stop.vehicles.length}</span>`, iconSize: [25, 25], iconAnchor: [13, 13] });
+    const details = stop.vehicles.map((vehicle) => `Linie ${escapeHtml(vehicle.line)} · Fahrzeug ${escapeHtml(vehicle.vehicleNumber)}`).join("<br>");
+    L.marker([stop.latitude, stop.longitude], { icon }).bindPopup(`<strong>${escapeHtml(stop.name)}</strong><br>${details}`).addTo(state.stopLayer);
+  }
+  elements["map-info"].textContent = stops.size === 1 ? "1 nächste Haltestelle leuchtet" : `${stops.size} nächste Haltestellen leuchten`;
+  if (!state.mapFitted && stops.size) {
+    state.map.fitBounds(L.latLngBounds([...stops.values()].map((stop) => [stop.latitude, stop.longitude])).pad(0.16), { maxZoom: 15 });
+    state.mapFitted = true;
+  }
+}
+
+function escapeHtml(value) {
+  const span = document.createElement("span");
+  span.textContent = value;
+  return span.innerHTML;
 }
 
 async function refreshList() {
@@ -275,7 +346,13 @@ async function refreshDetails() {
   try {
     const results = await Promise.allSettled(vehicles.map(async (vehicle) => {
       const nextStop = findNextStop(await fetchJson(detailEndpoint(vehicle)));
-      return { ...vehicle, nextStop: nextStop ?? "Keine kommende Passage gemeldet" };
+      return {
+        ...vehicle,
+        nextStop: nextStop?.name ?? "Keine kommende Passage gemeldet",
+        nextStopLatitude: nextStop?.latitude ?? null,
+        nextStopLongitude: nextStop?.longitude ?? null,
+        nextStopDeparture: nextStop?.departureTimeActual ?? null,
+      };
     }));
     results.forEach((result, index) => {
       if (result.status === "fulfilled") state.vehicles.set(vehicles[index].tripId, result.value);
@@ -311,6 +388,14 @@ function hideError() { elements.message.hidden = true; }
 
 setInterval(() => { elements.clock.textContent = new Date().toLocaleTimeString("de-DE"); }, 1_000);
 elements.refresh.addEventListener("click", refreshList);
+document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach((button) => button.setAttribute("aria-selected", String(button === tab)));
+  document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== tab.dataset.view; });
+  if (tab.dataset.view === "map-view") {
+    initMap();
+    requestAnimationFrame(() => { state.map?.invalidateSize(); renderStopLamps(); });
+  }
+}));
 refreshList();
 setInterval(refreshList, LIST_INTERVAL);
 setInterval(refreshDetails, DETAIL_INTERVAL);

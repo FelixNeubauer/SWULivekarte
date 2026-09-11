@@ -43,6 +43,8 @@ h1 { margin: 0; font: 800 clamp(36px, 5vw, 58px)/1 Manrope; letter-spacing: -.04
 .network-plan { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; }
 .stop-overlay { position: absolute; inset: 0; }
 .map-info { position: absolute; z-index: 500; top: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 22px; background: #091521e8; color: #dce5ea; box-shadow: 0 8px 28px #0004; font-size: 12px; pointer-events: none; }
+.save-positions { position: absolute; z-index: 500; top: 18px; right: 18px; padding: 9px 13px; border: 1px solid #fff7; border-radius: 20px; background: #091521e8; color: #fff; cursor: pointer; }
+.save-positions:hover { border-color: var(--yellow); color: var(--yellow); }
 .stop-ring { --lamp: var(--yellow); position: absolute; z-index: 2; width: 11px; height: 11px; padding: 0; transform: translate(-50%, -50%); border: 2px solid #263e4d; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #fff; cursor: grab; touch-action: none; }
 .stop-ring:active { cursor: grabbing; }
 .stop-ring:hover { z-index: 8; }
@@ -137,6 +139,7 @@ footer span:first-child { margin-right: auto; }
           </div>
         </div>
         <div id="map-info" class="map-info">Steige werden geladen · Ringe können verschoben werden</div>
+        <button id="save-positions" class="save-positions" type="button">Positionen speichern</button>
       </section>
 
       <footer>
@@ -155,6 +158,7 @@ footer span:first-child { margin-right: auto; }
       </article>
     </template>
 
+    <script src="stoppoint-positionen.js"></script>
     <script>
 const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
 const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
@@ -189,7 +193,6 @@ const SCHEMATIC_POSITIONS = {
   "Wiley Süd": [70.8, 75.0], "Washingtonallee": [72.2, 72.3], "Grethe-Weiser-Straße": [68.2, 68.8],
 };
 const UNMAPPED_POSITION = [94.2, 49.5];
-const POSITION_STORAGE_KEY = "swu-stop-point-positions-v1";
 
 const first = (object, keys, fallback = null) => {
   for (const key of keys) {
@@ -301,8 +304,8 @@ async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
 
 const LIST_INTERVAL = 60_000;
 const DETAIL_INTERVAL = 10_000;
-const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info", "stop-overlay"].map((id) => [id, document.getElementById(id)]));
-const state = { vehicles: new Map(), loading: false, detailLoading: false, allStops: [], stopPointsLoading: false, rings: new Map(), customPositions: loadCustomPositions() };
+const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info", "stop-overlay", "save-positions"].map((id) => [id, document.getElementById(id)]));
+const state = { vehicles: new Map(), loading: false, detailLoading: false, allStops: [], stopPointsLoading: false, rings: new Map(), customPositions: { ...(window.SWU_STOP_POINT_POSITIONS || {}) } };
 
 function lineColor(line) {
   const colors = ["#ffca0a", "#39b8ff", "#f47531", "#92d13d", "#e9559a", "#ad8cff"];
@@ -390,15 +393,25 @@ function schematicPosition(stop) {
   return fuzzy?.[1] ?? UNMAPPED_POSITION;
 }
 
-function loadCustomPositions() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(POSITION_STORAGE_KEY) || "{}");
-    return stored && typeof stored === "object" ? stored : {};
-  } catch { return {}; }
-}
-
-function saveCustomPositions() {
-  try { localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(state.customPositions)); } catch { /* Speicher kann deaktiviert sein. */ }
+async function savePositionsFile() {
+  const content = `window.SWU_STOP_POINT_POSITIONS = ${JSON.stringify(state.customPositions, null, 2)};\n`;
+  const blob = new Blob([content], { type: "text/javascript" });
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: "stoppoint-positionen.js", types: [{ description: "JavaScript", accept: { "text/javascript": [".js"] } }] });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      elements["map-info"].textContent = "stoppoint-positionen.js wurde gespeichert";
+      return;
+    } catch (error) { if (error.name === "AbortError") return; }
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "stoppoint-positionen.js";
+  link.click();
+  URL.revokeObjectURL(link.href);
+  elements["map-info"].textContent = "Positionsdatei heruntergeladen · bitte im Repository ersetzen";
 }
 
 function makeRingDraggable(ring, stop) {
@@ -423,8 +436,7 @@ function makeRingDraggable(ring, stop) {
     ring.releasePointerCapture(event.pointerId);
     if (moved) {
       ring.dataset.wasDragged = "true";
-      saveCustomPositions();
-      elements["map-info"].textContent = `${stop.name} · Position gespeichert`;
+      elements["map-info"].textContent = `${stop.name} verschoben · Positionsdatei noch speichern`;
     }
   });
 }
@@ -567,6 +579,7 @@ function hideError() { elements.message.hidden = true; }
 
 setInterval(() => { elements.clock.textContent = new Date().toLocaleTimeString("de-DE"); }, 1_000);
 elements.refresh.addEventListener("click", refreshList);
+elements["save-positions"].addEventListener("click", savePositionsFile);
 document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
   document.querySelectorAll(".tab").forEach((button) => button.setAttribute("aria-selected", String(button === tab)));
   document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== tab.dataset.view; });

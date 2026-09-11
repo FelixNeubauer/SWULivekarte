@@ -52,6 +52,11 @@ h1 { margin: 0; font: 800 clamp(36px, 5vw, 58px)/1 Manrope; letter-spacing: -.04
 .stop-ring.active { z-index: 4; width: 17px; height: 17px; border: 3px solid #fff; background: var(--lamp); box-shadow: 0 0 0 6px color-mix(in srgb, var(--lamp) 28%, transparent), 0 0 25px 8px var(--lamp); animation: lamp 1.8s ease-in-out infinite; cursor: pointer; }
 .stop-ring.active::after { content: attr(data-count); position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink); font: 800 8px Manrope; }
 .stop-popup { position: absolute; z-index: 10; max-width: 240px; padding: 10px 12px; border-radius: 8px; background: var(--panel); color: white; box-shadow: 0 8px 25px #0007; font-size: 11px; line-height: 1.45; transform: translate(10px, -50%); }
+.stop-popup > strong { display: block; margin-bottom: 7px; color: var(--yellow); }
+.popup-vehicle { display: grid; grid-template-columns: auto auto; gap: 1px 9px; padding: 6px 0; border-top: 1px solid #ffffff1a; }
+.popup-vehicle strong { color: #fff; }
+.popup-vehicle span { color: #aebdc7; }
+.popup-vehicle .popup-destination { grid-column: 1 / -1; color: #e5ebee; }
 .list-heading { min-height: 76px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; }
 .list-heading h2 { margin: 0; font: 700 20px Manrope; }
 .count { padding: 6px 11px; border-radius: 18px; background: #152b3a; color: var(--muted); font-size: 12px; }
@@ -465,7 +470,13 @@ function renderStopLamps() {
   }
   for (const stop of stops.values()) {
     const color = lineColor(stop.vehicles[0].line);
-    const details = stop.vehicles.map((vehicle) => `Linie ${escapeHtml(vehicle.line)} · Fahrzeug ${escapeHtml(vehicle.vehicleNumber)}`).join("<br>");
+    const details = stop.vehicles.map((vehicle) => `
+      <div class="popup-vehicle">
+        <strong>Linie ${escapeHtml(vehicle.line)}</strong>
+        <span>Fahrzeug ${escapeHtml(vehicle.vehicleNumber)}</span>
+        <span class="popup-destination">Ziel: ${escapeHtml(vehicle.destination)}</span>
+      </div>
+    `).join("");
     const ring = state.rings.get(stop.id);
     if (!ring) continue;
     ring.classList.add("active");
@@ -474,7 +485,7 @@ function renderStopLamps() {
     ring.tabIndex = 0;
     ring.onclick = () => {
       if (ring.dataset.wasDragged) { delete ring.dataset.wasDragged; return; }
-      showStopPopup(ring, `<strong>${escapeHtml(stop.name)}</strong><br>${details}`);
+      showStopPopup(ring, `<strong>Steig: ${escapeHtml(stop.name)}</strong>${details}`);
     };
   }
   const base = state.allStops.length ? `${state.allStops.length} Steige` : "Steige werden geladen";

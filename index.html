@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#091521" />
+    <title>SWU Live-Fahrzeuge</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap");
+
+:root { color-scheme: dark; --ink: #091521; --panel: #0d1c29; --panel-hover: #122635; --line: #203442; --muted: #8da0ae; --yellow: #ffca0a; }
+* { box-sizing: border-box; }
+body { min-height: 100vh; margin: 0; background: var(--ink); color: #f7fafb; font-family: "DM Sans", system-ui, sans-serif; }
+button { font: inherit; }
+.topbar { height: 76px; padding: 0 clamp(20px, 4vw, 58px); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50% 50% 50% 13px; background: var(--yellow); color: var(--ink); font: 800 24px Manrope; transform: rotate(-6deg); }
+.brand > span:last-child { display: grid; line-height: 1; }
+.brand strong { font: 800 20px Manrope; }
+.brand small { margin-top: 5px; color: var(--yellow); font-size: 8px; letter-spacing: .2em; }
+.connection { display: flex; align-items: center; gap: 10px; color: #b8c4cc; font-size: 13px; }
+.connection time { border-left: 1px solid #30414e; padding-left: 16px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; background: #64d56b; box-shadow: 0 0 0 5px #64d56b18; }
+.status-dot.loading { background: var(--yellow); animation: pulse 1.1s infinite; }
+.status-dot.offline { background: #ef7069; box-shadow: 0 0 0 5px #ef706918; }
+main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+.intro { padding: 58px 0 36px; display: flex; justify-content: space-between; align-items: end; }
+.eyebrow { margin: 0 0 8px; color: var(--yellow); font-weight: 700; letter-spacing: .22em; font-size: 10px; text-transform: uppercase; }
+h1 { margin: 0; font: 800 clamp(36px, 5vw, 58px)/1 Manrope; letter-spacing: -.045em; }
+.intro p:last-child { margin: 16px 0 0; color: var(--muted); }
+.refresh { padding: 11px 18px; border: 1px solid #385062; border-radius: 24px; background: transparent; color: #d8e1e7; cursor: pointer; }
+.refresh:hover { border-color: var(--yellow); color: var(--yellow); }
+.refresh.busy { opacity: .55; pointer-events: none; }
+.refresh.busy span { display: inline-block; animation: spin .8s linear infinite; }
+.list-shell { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px #0003; }
+.tabs { display: flex; gap: 7px; margin-bottom: 18px; padding: 5px; width: max-content; border: 1px solid var(--line); border-radius: 24px; background: #0c1a27; }
+.tab { padding: 9px 18px; border: 0; border-radius: 18px; background: transparent; color: var(--muted); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--yellow); color: var(--ink); font-weight: 700; }
+.view[hidden] { display: none; }
+.map-shell { position: relative; height: min(680px, calc(100vh - 285px)); min-height: 430px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #d7d4ca; }
+#map { width: 100%; height: 100%; }
+.map-info { position: absolute; z-index: 500; top: 18px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 22px; background: #091521e8; color: #dce5ea; box-shadow: 0 8px 28px #0004; font-size: 12px; pointer-events: none; }
+.stop-lamp { background: transparent; border: 0; }
+.stop-lamp span { --lamp: var(--yellow); position: relative; display: grid; place-items: center; width: 25px; height: 25px; border: 4px solid #fff; border-radius: 50%; background: var(--lamp); color: var(--ink); box-shadow: 0 0 0 7px color-mix(in srgb, var(--lamp) 28%, transparent), 0 0 28px 8px var(--lamp); font: 800 10px Manrope; animation: lamp 1.8s ease-in-out infinite; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: white; }
+.leaflet-popup-content { line-height: 1.5; }
+.list-heading { min-height: 76px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; }
+.list-heading h2 { margin: 0; font: 700 20px Manrope; }
+.count { padding: 6px 11px; border-radius: 18px; background: #152b3a; color: var(--muted); font-size: 12px; }
+.count strong { color: var(--yellow); }
+.table-header, .vehicle-row { display: grid; grid-template-columns: 110px 190px minmax(220px, 1.3fr) minmax(190px, 1fr); gap: 18px; align-items: center; }
+.table-header { padding: 11px 26px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: #647987; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.vehicle-row { min-height: 82px; padding: 14px 26px; border-bottom: 1px solid #182d3b; transition: background .18s; }
+.vehicle-row:last-child { border-bottom: 0; }
+.vehicle-row:hover { background: var(--panel-hover); }
+.vehicle-row > div { min-width: 0; }
+.vehicle-row strong { display: block; overflow: hidden; color: #e8edf0; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.line-badge { --line-color: var(--yellow); display: grid; width: 46px; height: 38px; place-items: center; border-radius: 10px; background: var(--line-color); color: var(--ink); font: 800 17px Manrope; }
+.stop { display: grid; grid-template-columns: 10px minmax(0, 1fr); align-items: center; gap: 9px; }
+.stop i { width: 9px; height: 9px; border: 2px solid var(--yellow); border-radius: 50%; }
+.stop .mobile-label { grid-column: 1 / -1; }
+.message { margin: 20px 26px; padding: 15px 17px; border: 1px solid #663d3d; border-radius: 10px; background: #3a2426; color: #ffc8c4; font-size: 13px; line-height: 1.5; }
+.message button { margin-left: 8px; border: 0; background: none; color: var(--yellow); cursor: pointer; text-decoration: underline; }
+.loading-row, .empty-row { min-height: 150px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-size: 14px; }
+.spinner { width: 18px; height: 18px; border: 2px solid #42535f; border-top-color: var(--yellow); border-radius: 50%; animation: spin .8s linear infinite; }
+.mobile-label { display: none; }
+footer { display: flex; gap: 26px; justify-content: flex-end; padding: 20px 4px 35px; color: #637785; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+footer span:first-child { margin-right: auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: .35; } }
+@keyframes lamp { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--lamp) 12%, transparent), 0 0 38px 12px var(--lamp); } }
+@media (max-width: 760px) {
+  .topbar { height: 66px; } .connection time { display: none; } .connection { font-size: 11px; }
+  main { width: min(100% - 24px, 620px); } .intro { padding: 36px 4px 25px; align-items: start; gap: 24px; } .intro p:last-child { font-size: 13px; }
+  .refresh { padding: 10px; font-size: 0; } .refresh span { font-size: 20px; }
+  .table-header { display: none; } .vehicle-row { grid-template-columns: 70px 1fr; gap: 18px 10px; padding: 19px; }
+  .mobile-label { display: block; margin-bottom: 5px; color: #627886; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+  .stop { display: grid; grid-template-columns: 10px 1fr; } .stop .mobile-label { margin-bottom: -2px; }
+  footer { flex-wrap: wrap; justify-content: flex-start; gap: 10px 18px; } footer span:first-child { margin-right: 0; }
+}
+
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="SWU Live-Fahrzeuge">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>SWU</strong><small>LIVE-FAHRZEUGE</small></span>
+      </a>
+      <div class="connection">
+        <span id="status-dot" class="status-dot loading" aria-hidden="true"></span>
+        <span id="connection-label">Fahrzeuge werden geladen …</span>
+        <time id="clock">--:--:--</time>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">Ulm · Neu-Ulm</p>
+          <h1>Aktive Fahrzeuge</h1>
+          <p id="summary">Die aktuellen Fahrten werden bei der SWU abgefragt.</p>
+        </div>
+        <button id="refresh" class="refresh" type="button"><span aria-hidden="true">↻</span> Jetzt aktualisieren</button>
+      </section>
+
+      <nav class="tabs" aria-label="Ansicht wählen">
+        <button class="tab" type="button" data-view="list-view" aria-selected="true">Fahrzeugliste</button>
+        <button class="tab" type="button" data-view="map-view" aria-selected="false">Haltestellenkarte</button>
+      </nav>
+
+      <section id="list-view" class="view list-shell" aria-labelledby="list-title">
+        <div class="list-heading">
+          <h2 id="list-title">Fahrzeugliste</h2>
+          <span class="count"><strong id="vehicle-count">0</strong> aktiv</span>
+        </div>
+        <div id="message" class="message" hidden></div>
+        <div class="table-header" aria-hidden="true">
+          <span>Linie</span><span>Fahrzeugnummer</span><span>Nächste Haltestelle</span><span>Fahrtziel</span>
+        </div>
+        <div id="vehicles" class="vehicle-list" aria-live="polite" aria-busy="true">
+          <div class="loading-row"><span class="spinner"></span><span>Verbindung zur SWU wird hergestellt …</span></div>
+        </div>
+      </section>
+
+      <section id="map-view" class="view map-shell" aria-label="Karte der nächsten Haltestellen" hidden>
+        <div id="map"></div>
+        <div id="map-info" class="map-info">Noch keine nächsten Haltestellen mit Koordinaten</div>
+      </section>
+
+      <footer>
+        <span>Aktive Fahrten: alle 60 Sekunden</span>
+        <span>Fahrzeugdetails: alle 10 Sekunden</span>
+        <span id="last-update">Noch nicht aktualisiert</span>
+      </footer>
+    </main>
+
+    <template id="vehicle-template">
+      <article class="vehicle-row">
+        <div><span class="mobile-label">Linie</span><span class="line-badge"></span></div>
+        <div><span class="mobile-label">Fahrzeug</span><strong class="vehicle-number"></strong></div>
+        <div class="stop"><span class="mobile-label">Nächste Haltestelle</span><i aria-hidden="true"></i><strong></strong></div>
+        <div><span class="mobile-label">Fahrtziel</span><strong class="destination"></strong></div>
+      </article>
+    </template>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
+const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
+const STOP_POINTS_ENDPOINT = "https://api.swu.de/mobility/v1/stoppoint/attributes/BaseData";
+
+const first = (object, keys, fallback = null) => {
+  for (const key of keys) {
+    const value = key.split(".").reduce((current, part) => current?.[part], object);
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return fallback;
+};
+
+function unwrapCollection(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["VehicleTrip.TripData", "vehicles", "trips", "Trip", "items", "data", "results", "value"], null);
+}
+
+function unwrapDetail(payload) {
+  return first(payload, ["vehicle", "trip", "Trip", "data", "result"], payload);
+}
+
+function unwrapPassages(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["VehicleTrip.PassageData", "VehiclePassage.PassageData", "Passage.PassageData", "PassageData", "passages", "data"], []);
+}
+
+function unwrapStopPoints(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["StopPointAttributes.StopPointData", "StopPointData"], []);
+}
+
+function stopPointKey(raw) {
+  const stopNumber = first(raw, ["ParentStop.StopNumber", "StopNumber"], null);
+  const platform = first(raw, ["PlatformName"], null);
+  if (stopNumber !== null && platform !== null) return `${stopNumber}:${platform}`;
+  return String(first(raw, ["StopPointCode", "StopPointNumber"], ""));
+}
+
+function normalizeStopPoint(raw) {
+  const latitude = Number(first(raw, ["StopPointCoordinates.Latitude", "Latitude"], null));
+  const longitude = Number(first(raw, ["StopPointCoordinates.Longitude", "Longitude"], null));
+  return {
+    id: stopPointKey(raw),
+    name: String(first(raw, ["StopPointName", "StopName", "Name"], "Unbenannter Steig")),
+    latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
+    longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
+  };
+}
+
+function findNextStop(payload, now = new Date()) {
+  const passages = unwrapPassages(payload);
+  if (!Array.isArray(passages)) return null;
+
+  const next = passages
+    .map((passage) => ({ passage, departure: new Date(first(passage, ["DepartureTimeActual", "TimeData.DepartureTimeActual"], "")) }))
+    .filter(({ departure }) => !Number.isNaN(departure.getTime()) && departure >= now)
+    .sort((a, b) => a.departure - b.departure)[0]?.passage;
+
+  if (!next) return null;
+  const name = first(next, ["StopPointName", "StopName", "StopPoint.StopPointName", "StopPoint.Name", "StopPointData.StopPointName", "StopData.StopName", "Stop.Name", "StationName", "Name"], null);
+  const latitude = Number(first(next, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude", "StopPointData.Latitude", "StopPointData.PositionData.Latitude"], null));
+  const longitude = Number(first(next, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude", "StopPointData.Longitude", "StopPointData.PositionData.Longitude"], null));
+  return {
+    id: stopPointKey(next),
+    name,
+    latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
+    longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
+    departureTimeActual: first(next, ["DepartureTimeActual", "TimeData.DepartureTimeActual"], null),
+  };
+}
+
+function normalizeVehicle(raw, previous = {}) {
+  const tripId = first(raw, ["VehicleNumber", "tripId", "tripID", "id", "TripId", "trip.id"], previous.tripId);
+  const vehicleNumber = first(raw, ["VehicleNumber", "vehicleNumber", "vehicleNo", "vehicleId", "vehicle.id", "callName"], previous.vehicleNumber ?? tripId);
+  const line = first(raw, ["JourneyData.RouteName", "JourneyData.RouteNumber", "lineNumber", "line.number", "line.name", "line", "routeShortName", "publishedLineName", "LineNumber"], previous.line ?? "–");
+  const nextStop = first(raw, ["nextStop.name", "nextStopName", "nextStation.name", "onwardCalls.0.stop.name", "stops.0.name", "NextStop"], previous.nextStop ?? "Nicht in Trip enthalten");
+  const destination = first(raw, ["JourneyData.DepartureDirectionText", "JourneyData.ArrivalDirectionText", "destination.name", "destination", "headsign", "direction", "tripDestination", "Destination"], previous.destination ?? "Unbekannt");
+  const latitude = Number(first(raw, ["PositionData.Latitude", "position.latitude", "position.lat", "location.latitude", "latitude", "lat", "Latitude"], previous.latitude));
+  const longitude = Number(first(raw, ["PositionData.Longitude", "position.longitude", "position.lon", "position.lng", "location.longitude", "longitude", "lon", "lng", "Longitude"], previous.longitude));
+  const links = raw?._links ?? {};
+  const detailUrl = first(raw, ["detailUrl", "href", "_links.self.href", "links.self"], previous.detailUrl);
+
+  return {
+    ...previous,
+    raw,
+    tripId: String(tripId ?? vehicleNumber ?? `unbekannt-${Math.random().toString(36).slice(2)}`),
+    vehicleNumber: String(vehicleNumber ?? "–"),
+    line: String(line),
+    nextStop: String(nextStop),
+    destination: typeof destination === "object" ? String(destination.name ?? destination.label ?? "Unbekannt") : String(destination),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    detailUrl: detailUrl ?? links.trip?.href ?? null,
+    isActive: raw.IsActive ?? previous.isActive ?? true,
+  };
+}
+
+function detailEndpoint(vehicle) {
+  const query = new URLSearchParams({ VehicleNumber: vehicle.vehicleNumber, Range: "upcoming" });
+  return `${PASSAGES_ENDPOINT}?${query}`;
+}
+
+async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
+  const response = await fetch(url, { signal, headers: { Accept: "application/json" }, cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+
+
+const LIST_INTERVAL = 60_000;
+const DETAIL_INTERVAL = 10_000;
+const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info"].map((id) => [id, document.getElementById(id)]));
+const state = { vehicles: new Map(), loading: false, detailLoading: false, map: null, stopLayer: null, allStopLayer: null, allStops: [], stopPointsLoading: false, mapFitted: false };
+
+function lineColor(line) {
+  const colors = ["#ffca0a", "#39b8ff", "#f47531", "#92d13d", "#e9559a", "#ad8cff"];
+  return colors[[...String(line)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length];
+}
+
+function setConnection(mode, text) {
+  elements["connection-label"].textContent = text;
+  elements["status-dot"].className = `status-dot ${mode}`.trim();
+}
+
+function render() {
+  const vehicles = [...state.vehicles.values()].sort((a, b) => a.line.localeCompare(b.line, "de", { numeric: true }));
+  elements.vehicles.replaceChildren();
+  for (const vehicle of vehicles) {
+    const row = document.getElementById("vehicle-template").content.firstElementChild.cloneNode(true);
+    row.querySelector(".line-badge").textContent = vehicle.line;
+    row.querySelector(".line-badge").style.setProperty("--line-color", lineColor(vehicle.line));
+    row.querySelector(".vehicle-number").textContent = vehicle.vehicleNumber;
+    row.querySelector(".stop strong").textContent = vehicle.nextStop;
+    row.querySelector(".destination").textContent = vehicle.destination;
+    elements.vehicles.append(row);
+  }
+  if (!vehicles.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-row";
+    empty.textContent = "Die SWU meldet aktuell keine aktiven Fahrzeuge.";
+    elements.vehicles.append(empty);
+  }
+  elements["vehicle-count"].textContent = vehicles.length;
+  elements.summary.textContent = `${vehicles.length} ${vehicles.length === 1 ? "Fahrzeug ist" : "Fahrzeuge sind"} derzeit im Liniennetz aktiv.`;
+  elements.vehicles.setAttribute("aria-busy", "false");
+  renderStopLamps();
+}
+
+function initMap() {
+  if (state.map || !window.L) return;
+  state.map = L.map("map").setView([48.3984, 9.9916], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(state.map);
+  state.allStopLayer = L.layerGroup().addTo(state.map);
+  state.stopLayer = L.layerGroup().addTo(state.map);
+  loadAllStopPoints();
+}
+
+async function loadAllStopPoints() {
+  if (state.stopPointsLoading || state.allStops.length) return;
+  state.stopPointsLoading = true;
+  try {
+    const rawStops = unwrapStopPoints(await fetchJson(STOP_POINTS_ENDPOINT));
+    if (!Array.isArray(rawStops) || !rawStops.length) throw new Error("Keine StopPointAttributes.StopPointData enthalten");
+    state.allStops = rawStops.map(normalizeStopPoint).filter((stop) => stop.latitude !== null && stop.longitude !== null);
+    if (!state.allStops.length) throw new Error("Keine StopPoints mit Koordinaten enthalten");
+    renderAllStopPoints();
+    renderStopLamps();
+  } catch (error) {
+    elements["map-info"].textContent = `Steige konnten nicht geladen werden: ${error.message}`;
+  } finally { state.stopPointsLoading = false; }
+}
+
+function renderAllStopPoints() {
+  if (!state.map || !state.allStopLayer) return;
+  state.allStopLayer.clearLayers();
+  for (const stop of state.allStops) {
+    L.circleMarker([stop.latitude, stop.longitude], { radius: 5, color: "#526c7d", weight: 2, opacity: .9, fill: false })
+      .addTo(state.allStopLayer);
+  }
+  elements["map-info"].textContent = `${state.allStops.length} Steige · Ringe warten auf Fahrzeuge`;
+}
+
+function renderStopLamps() {
+  if (!state.map || !state.stopLayer) return;
+  state.stopLayer.clearLayers();
+  const stops = new Map();
+  for (const vehicle of state.vehicles.values()) {
+    if (!Number.isFinite(vehicle.nextStopLatitude) || !Number.isFinite(vehicle.nextStopLongitude)) continue;
+    const key = vehicle.nextStopId || `${vehicle.nextStopLatitude.toFixed(6)},${vehicle.nextStopLongitude.toFixed(6)}`;
+    const stop = stops.get(key) ?? { id: vehicle.nextStopId, name: vehicle.nextStop || "Unbekannter Steig", latitude: vehicle.nextStopLatitude, longitude: vehicle.nextStopLongitude, vehicles: [] };
+    stop.vehicles.push(vehicle);
+    stops.set(key, stop);
+  }
+  for (const stop of stops.values()) {
+    const color = lineColor(stop.vehicles[0].line);
+    const icon = L.divIcon({ className: "stop-lamp", html: `<span style="--lamp:${color}">${stop.vehicles.length}</span>`, iconSize: [25, 25], iconAnchor: [13, 13] });
+    const details = stop.vehicles.map((vehicle) => `Linie ${escapeHtml(vehicle.line)} · Fahrzeug ${escapeHtml(vehicle.vehicleNumber)}`).join("<br>");
+    L.marker([stop.latitude, stop.longitude], { icon }).bindPopup(`<strong>${escapeHtml(stop.name)}</strong><br>${details}`).addTo(state.stopLayer);
+  }
+  const base = state.allStops.length ? `${state.allStops.length} Steige` : "Steige werden geladen";
+  elements["map-info"].textContent = `${base} · ${stops.size} davon leuchten`;
+  if (!state.mapFitted && stops.size) {
+    state.map.fitBounds(L.latLngBounds([...stops.values()].map((stop) => [stop.latitude, stop.longitude])).pad(0.16), { maxZoom: 15 });
+    state.mapFitted = true;
+  }
+}
+
+function escapeHtml(value) {
+  const span = document.createElement("span");
+  span.textContent = value;
+  return span.innerHTML;
+}
+
+async function refreshList() {
+  if (state.loading) return;
+  state.loading = true;
+  elements.refresh.classList.add("busy");
+  setConnection("loading", "SWU wird abgefragt …");
+  try {
+    const rawVehicles = unwrapCollection(await fetchJson(TRIPS_ENDPOINT));
+    if (!Array.isArray(rawVehicles)) throw new Error("Die Antwort enthält kein VehicleTrip.TripData");
+    const activeIds = new Set();
+    for (const raw of rawVehicles.filter((vehicle) => vehicle.IsActive === true)) {
+      const candidate = normalizeVehicle(raw);
+      activeIds.add(candidate.tripId);
+      state.vehicles.set(candidate.tripId, normalizeVehicle(raw, state.vehicles.get(candidate.tripId)));
+    }
+    for (const id of state.vehicles.keys()) if (!activeIds.has(id)) state.vehicles.delete(id);
+    hideError();
+    render();
+    markUpdated();
+    setConnection("", "Live verbunden");
+    refreshDetails();
+  } catch (error) {
+    const hint = location.protocol === "file:" && error instanceof TypeError
+      ? " Der Browser hat die direkte Anfrage vermutlich wegen CORS blockiert."
+      : "";
+    showError(`Fahrzeugliste konnte nicht geladen werden: ${error.message}.${hint}`);
+  } finally {
+    state.loading = false;
+    elements.refresh.classList.remove("busy");
+  }
+}
+
+async function refreshDetails() {
+  if (state.detailLoading || !state.vehicles.size) return;
+  state.detailLoading = true;
+  const vehicles = [...state.vehicles.values()];
+  try {
+    const results = await Promise.allSettled(vehicles.map(async (vehicle) => {
+      const nextStop = findNextStop(await fetchJson(detailEndpoint(vehicle)));
+      const knownStop = nextStop?.id ? state.allStops.find((stop) => stop.id === nextStop.id) : null;
+      return {
+        ...vehicle,
+        nextStop: nextStop?.name ?? knownStop?.name ?? "Keine kommende Passage gemeldet",
+        nextStopId: nextStop?.id ?? "",
+        nextStopLatitude: nextStop?.latitude ?? knownStop?.latitude ?? null,
+        nextStopLongitude: nextStop?.longitude ?? knownStop?.longitude ?? null,
+        nextStopDeparture: nextStop?.departureTimeActual ?? null,
+      };
+    }));
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") state.vehicles.set(vehicles[index].tripId, result.value);
+    });
+    if (results.some((result) => result.status === "fulfilled")) {
+      render();
+      markUpdated();
+    }
+  } finally {
+    state.detailLoading = false;
+  }
+}
+
+function markUpdated() {
+  const time = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  elements["last-update"].textContent = `Stand: ${time}`;
+}
+
+function showError(message) {
+  setConnection("offline", "Keine Verbindung");
+  elements.message.replaceChildren(document.createTextNode(message));
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Erneut versuchen";
+  retry.addEventListener("click", refreshList);
+  elements.message.append(retry);
+  elements.message.hidden = false;
+  elements.vehicles.replaceChildren();
+  elements.vehicles.setAttribute("aria-busy", "false");
+}
+
+function hideError() { elements.message.hidden = true; }
+
+setInterval(() => { elements.clock.textContent = new Date().toLocaleTimeString("de-DE"); }, 1_000);
+elements.refresh.addEventListener("click", refreshList);
+document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach((button) => button.setAttribute("aria-selected", String(button === tab)));
+  document.querySelectorAll(".view").forEach((view) => { view.hidden = view.id !== tab.dataset.view; });
+  if (tab.dataset.view === "map-view") {
+    initMap();
+    requestAnimationFrame(() => { state.map?.invalidateSize(); renderStopLamps(); });
+  }
+}));
+refreshList();
+setInterval(refreshList, LIST_INTERVAL);
+setInterval(refreshDetails, DETAIL_INTERVAL);
+
+    </script>
+  </body>
+</html>

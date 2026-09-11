@@ -370,11 +370,22 @@ function renderAllStopPoints() {
 }
 
 function schematicPosition(stop) {
-  const base = SCHEMATIC_POSITIONS[stop.parentName];
-  if (!base) return UNMAPPED_POSITION;
-  const index = [...stop.platformName].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 8;
-  const angle = index * Math.PI / 4;
-  return [base[0] + Math.cos(angle) * .38, base[1] + Math.sin(angle) * .5];
+  const name = canonicalStopName(stop.parentName);
+  const exact = SCHEMATIC_POSITIONS[name];
+  if (exact) return exact;
+
+  const fuzzy = Object.entries(SCHEMATIC_POSITIONS).find(([candidate]) => {
+    const normalizedCandidate = canonicalStopName(candidate);
+    return name.endsWith(normalizedCandidate) || normalizedCandidate.endsWith(name);
+  });
+  return fuzzy?.[1] ?? UNMAPPED_POSITION;
+}
+
+function canonicalStopName(name) {
+  return String(name)
+    .replace(/^(Ulm|Neu-Ulm|Blaustein|Erbach),?\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function renderStopLamps() {

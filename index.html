@@ -149,6 +149,10 @@ footer span:first-child { margin-right: auto; }
     <script>
 const TRIPS_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Trip";
 const PASSAGES_ENDPOINT = "https://api.swu.de/mobility/v1/vehicle/trip/Passage";
+const STOP_POINTS_ENDPOINTS = [
+  "https://api.swu.de/mobility/v1/stop/StopPoint",
+  "https://api.swu.de/mobility/v1/network/stop/StopPoint",
+];
 
 const first = (object, keys, fallback = null) => {
   for (const key of keys) {
@@ -172,6 +176,22 @@ function unwrapPassages(payload) {
   return first(payload, ["VehicleTrip.PassageData", "VehiclePassage.PassageData", "Passage.PassageData", "PassageData", "passages", "data"], []);
 }
 
+function unwrapStopPoints(payload) {
+  if (Array.isArray(payload)) return payload;
+  return first(payload, ["StopPoint.StopPointData", "PublicTransportStopPoint.StopPointData", "StopPointData", "stopPoints", "data"], []);
+}
+
+function normalizeStopPoint(raw) {
+  const latitude = Number(first(raw, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude"], null));
+  const longitude = Number(first(raw, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude"], null));
+  return {
+    id: String(first(raw, ["StopPointNumber", "StopPointId", "StopPointID", "Number", "Id"], "")),
+    name: String(first(raw, ["StopPointName", "StopName", "Name"], "Unbenannter Steig")),
+    latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
+    longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
+  };
+}
+
 function findNextStop(payload, now = new Date()) {
   const passages = unwrapPassages(payload);
   if (!Array.isArray(passages)) return null;
@@ -186,6 +206,7 @@ function findNextStop(payload, now = new Date()) {
   const latitude = Number(first(next, ["Latitude", "PositionData.Latitude", "StopPoint.Latitude", "StopPoint.PositionData.Latitude", "StopPointData.Latitude", "StopPointData.PositionData.Latitude"], null));
   const longitude = Number(first(next, ["Longitude", "PositionData.Longitude", "StopPoint.Longitude", "StopPoint.PositionData.Longitude", "StopPointData.Longitude", "StopPointData.PositionData.Longitude"], null));
   return {
+    id: String(first(next, ["StopPointNumber", "StopPointId", "StopPointID", "StopPoint.StopPointNumber", "StopPointData.StopPointNumber"], "")),
     name,
     latitude: Number.isFinite(latitude) && latitude !== 0 ? latitude : null,
     longitude: Number.isFinite(longitude) && longitude !== 0 ? longitude : null,
@@ -235,7 +256,7 @@ async function fetchJson(url, signal = AbortSignal.timeout(12_000)) {
 const LIST_INTERVAL = 60_000;
 const DETAIL_INTERVAL = 10_000;
 const elements = Object.fromEntries(["vehicles", "vehicle-count", "summary", "message", "connection-label", "status-dot", "clock", "refresh", "last-update", "map-info"].map((id) => [id, document.getElementById(id)]));
-const state = { vehicles: new Map(), loading: false, detailLoading: false, map: null, stopLayer: null, mapFitted: false };
+const state = { vehicles: new Map(), loading: false, detailLoading: false, map: null, stopLayer: null, allStopLayer: null, allStops: [], stopPointsLoading: false, mapFitted: false };
 
 function lineColor(line) {
   const colors = ["#ffca0a", "#39b8ff", "#f47531", "#92d13d", "#e9559a", "#ad8cff"];
@@ -275,7 +296,40 @@ function initMap() {
   if (state.map || !window.L) return;
   state.map = L.map("map").setView([48.3984, 9.9916], 12);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(state.map);
+  state.allStopLayer = L.layerGroup().addTo(state.map);
   state.stopLayer = L.layerGroup().addTo(state.map);
+  loadAllStopPoints();
+}
+
+async function loadAllStopPoints() {
+  if (state.stopPointsLoading || state.allStops.length) return;
+  state.stopPointsLoading = true;
+  let lastError;
+  try {
+    for (const endpoint of STOP_POINTS_ENDPOINTS) {
+      try {
+        const rawStops = unwrapStopPoints(await fetchJson(endpoint));
+        if (!Array.isArray(rawStops) || !rawStops.length) throw new Error("Keine StopPointData enthalten");
+        state.allStops = rawStops.map(normalizeStopPoint).filter((stop) => stop.latitude !== null && stop.longitude !== null);
+        if (!state.allStops.length) throw new Error("Keine StopPoints mit Koordinaten enthalten");
+        renderAllStopPoints();
+        renderStopLamps();
+        return;
+      } catch (error) { lastError = error; }
+    }
+    elements["map-info"].textContent = `Steige konnten nicht geladen werden: ${lastError?.message ?? "Unbekannter Fehler"}`;
+  } finally { state.stopPointsLoading = false; }
+}
+
+function renderAllStopPoints() {
+  if (!state.map || !state.allStopLayer) return;
+  state.allStopLayer.clearLayers();
+  for (const stop of state.allStops) {
+    L.circleMarker([stop.latitude, stop.longitude], { radius: 5, color: "#526c7d", weight: 2, opacity: .9, fill: false })
+      .bindTooltip(`${escapeHtml(stop.name)}${stop.id ? ` · Steig ${escapeHtml(stop.id)}` : ""}`)
+      .addTo(state.allStopLayer);
+  }
+  elements["map-info"].textContent = `${state.allStops.length} Steige · Ringe warten auf Fahrzeuge`;
 }
 
 function renderStopLamps() {
@@ -284,8 +338,8 @@ function renderStopLamps() {
   const stops = new Map();
   for (const vehicle of state.vehicles.values()) {
     if (!Number.isFinite(vehicle.nextStopLatitude) || !Number.isFinite(vehicle.nextStopLongitude)) continue;
-    const key = `${vehicle.nextStopLatitude.toFixed(6)},${vehicle.nextStopLongitude.toFixed(6)}`;
-    const stop = stops.get(key) ?? { name: vehicle.nextStop || "Unbekannte Haltestelle", latitude: vehicle.nextStopLatitude, longitude: vehicle.nextStopLongitude, vehicles: [] };
+    const key = vehicle.nextStopId || `${vehicle.nextStopLatitude.toFixed(6)},${vehicle.nextStopLongitude.toFixed(6)}`;
+    const stop = stops.get(key) ?? { id: vehicle.nextStopId, name: vehicle.nextStop || "Unbekannter Steig", latitude: vehicle.nextStopLatitude, longitude: vehicle.nextStopLongitude, vehicles: [] };
     stop.vehicles.push(vehicle);
     stops.set(key, stop);
   }
@@ -295,7 +349,8 @@ function renderStopLamps() {
     const details = stop.vehicles.map((vehicle) => `Linie ${escapeHtml(vehicle.line)} · Fahrzeug ${escapeHtml(vehicle.vehicleNumber)}`).join("<br>");
     L.marker([stop.latitude, stop.longitude], { icon }).bindPopup(`<strong>${escapeHtml(stop.name)}</strong><br>${details}`).addTo(state.stopLayer);
   }
-  elements["map-info"].textContent = stops.size === 1 ? "1 nächste Haltestelle leuchtet" : `${stops.size} nächste Haltestellen leuchten`;
+  const base = state.allStops.length ? `${state.allStops.length} Steige` : "Steige werden geladen";
+  elements["map-info"].textContent = `${base} · ${stops.size} davon leuchten`;
   if (!state.mapFitted && stops.size) {
     state.map.fitBounds(L.latLngBounds([...stops.values()].map((stop) => [stop.latitude, stop.longitude])).pad(0.16), { maxZoom: 15 });
     state.mapFitted = true;
@@ -346,11 +401,13 @@ async function refreshDetails() {
   try {
     const results = await Promise.allSettled(vehicles.map(async (vehicle) => {
       const nextStop = findNextStop(await fetchJson(detailEndpoint(vehicle)));
+      const knownStop = nextStop?.id ? state.allStops.find((stop) => stop.id === nextStop.id) : null;
       return {
         ...vehicle,
-        nextStop: nextStop?.name ?? "Keine kommende Passage gemeldet",
-        nextStopLatitude: nextStop?.latitude ?? null,
-        nextStopLongitude: nextStop?.longitude ?? null,
+        nextStop: nextStop?.name ?? knownStop?.name ?? "Keine kommende Passage gemeldet",
+        nextStopId: nextStop?.id ?? "",
+        nextStopLatitude: nextStop?.latitude ?? knownStop?.latitude ?? null,
+        nextStopLongitude: nextStop?.longitude ?? knownStop?.longitude ?? null,
         nextStopDeparture: nextStop?.departureTimeActual ?? null,
       };
     }));

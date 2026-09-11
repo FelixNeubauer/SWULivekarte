@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap');
+
+:root { color-scheme: dark; --ink: #08131e; --panel: #0c1925; --panel-2: #102231; --muted: #8fa0ae; --cream: #f3efe4; --yellow: #ffca0a; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--ink); color: #fff; font-family: "DM Sans", system-ui, sans-serif; overflow: hidden; }
+button, a { font: inherit; }
+.topbar { height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: rgba(8, 19, 30, .97); border-bottom: 1px solid rgba(255,255,255,.08); position: relative; z-index: 1001; }
+.brand { display: flex; align-items: center; gap: 12px; color: white; text-decoration: none; }
+.brand-mark { width: 40px; height: 40px; border-radius: 50% 50% 50% 12px; display: grid; place-items: center; background: var(--yellow); color: var(--ink); font: 800 24px Manrope; transform: rotate(-6deg); }
+.brand > span:last-child { display: grid; line-height: 1; }
+.brand strong { font: 800 20px Manrope; letter-spacing: .04em; }
+.brand small { margin-top: 4px; color: var(--yellow); font-size: 9px; letter-spacing: .25em; }
+.topbar-status { color: #b5c0c9; font-size: 13px; display: flex; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+.status-dot { width: 8px; height: 8px; background: #68d66f; border-radius: 50%; box-shadow: 0 0 0 5px rgba(104,214,111,.1); }
+.status-dot.offline { background: #f07068; box-shadow: 0 0 0 5px rgba(240,112,104,.1); }
+.divider { height: 15px; width: 1px; background: #35424c; margin: 0 6px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 470px; height: calc(100vh - 76px); }
+.map-shell { position: relative; overflow: hidden; background: #d6d1c2; }
+#map { width: 100%; height: 100%; background: #d6d1c2; }
+.map-wash { position: absolute; inset: 0; z-index: 400; pointer-events: none; background: linear-gradient(115deg, rgba(7,20,31,.77) 0%, rgba(7,20,31,.35) 32%, transparent 57%); }
+.hero-copy { position: absolute; left: clamp(32px, 5vw, 76px); top: clamp(48px, 9vh, 110px); z-index: 500; pointer-events: none; max-width: 340px; text-shadow: 0 2px 18px rgba(0,0,0,.25); }
+.eyebrow { color: var(--yellow); font-size: 11px; font-weight: 700; letter-spacing: .23em; text-transform: uppercase; margin: 0 0 14px; }
+.hero-copy h1 { margin: 0; font: 800 clamp(44px, 5vw, 74px)/.95 Manrope; letter-spacing: -.055em; }
+.hero-copy h1 em { color: var(--yellow); font-style: normal; }
+.hero-copy > p:last-child { margin-top: 22px; color: #d9e0e5; line-height: 1.55; font-size: 14px; }
+.locate { position: absolute; right: 22px; bottom: 24px; z-index: 600; border: 0; width: 45px; height: 45px; border-radius: 50%; background: #fff; color: var(--ink); box-shadow: 0 6px 20px #0003; font-size: 24px; cursor: pointer; }
+.vehicle-panel { min-width: 0; background: var(--panel); display: flex; flex-direction: column; border-left: 1px solid rgba(255,255,255,.08); position: relative; z-index: 900; }
+.panel-heading { padding: 28px 28px 19px; display: flex; align-items: end; justify-content: space-between; }
+.panel-heading .eyebrow { margin-bottom: 7px; }
+.panel-heading h2 { margin: 0; font: 800 27px Manrope; letter-spacing: -.04em; }
+.panel-heading h2 span { display: inline-grid; place-items: center; vertical-align: 4px; min-width: 24px; height: 20px; padding: 0 6px; margin-left: 5px; color: var(--ink); background: var(--yellow); border-radius: 10px; font: 700 10px DM Sans; }
+.refresh { color: #9eacb8; background: transparent; border: 1px solid #2b3c4a; border-radius: 18px; padding: 7px 12px; cursor: pointer; font-size: 11px; }
+.refresh:hover { color: white; border-color: #526473; }
+.refresh.spinning { pointer-events: none; opacity: .5; }
+.refresh.spinning:first-letter { display: inline-block; }
+.legend { display: grid; grid-template-columns: 68px 1fr 125px; gap: 12px; padding: 9px 30px; color: #667784; text-transform: uppercase; letter-spacing: .12em; font-size: 8px; border-top: 1px solid #182b39; border-bottom: 1px solid #182b39; }
+.vehicle-list { flex: 1; overflow: auto; scrollbar-color: #2d4352 transparent; }
+.vehicle-card { min-height: 88px; display: grid; grid-template-columns: 50px 1fr 112px 12px; gap: 14px; align-items: center; padding: 15px 24px 15px 28px; border-bottom: 1px solid #182b39; cursor: pointer; transition: background .2s, transform .2s; }
+.vehicle-card:hover, .vehicle-card:focus { outline: 0; background: var(--panel-2); transform: translateX(-3px); }
+.line-badge { --line-color: var(--yellow); width: 43px; height: 43px; border-radius: 12px; background: var(--line-color); color: var(--ink); display: grid; place-items: center; font: 800 18px Manrope; box-shadow: inset 0 -3px 0 rgba(0,0,0,.12); }
+.vehicle-info, .destination { min-width: 0; display: grid; gap: 7px; }
+.vehicle-info strong, .destination strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-stop { color: #8fa1af; font-size: 11px; display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; }
+.next-stop i { flex: 0 0 auto; width: 7px; height: 7px; border: 2px solid var(--yellow); border-radius: 50%; }
+.next-stop span { overflow: hidden; text-overflow: ellipsis; }
+.destination small { color: #627481; font-size: 8px; text-transform: uppercase; letter-spacing: .12em; }
+.destination strong { color: #dce3e8; font-weight: 500; }
+.chevron { color: #526371; font-size: 22px; }
+.message { margin: 20px; padding: 14px; color: #ffc4bf; background: #3a2022; border: 1px solid #603337; border-radius: 9px; font-size: 12px; line-height: 1.5; }
+.panel-footer { min-height: 43px; padding: 0 28px; border-top: 1px solid #20313e; display: flex; justify-content: space-between; align-items: center; color: #617481; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.vehicle-marker { background: none; border: 0; }
+.vehicle-marker span { display: grid; place-items: center; width: 38px; height: 38px; border: 4px solid white; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg); background: var(--marker); color: var(--ink); box-shadow: 0 4px 14px #0006; font-weight: 800; }
+.vehicle-marker span::first-line { transform: rotate(45deg); }
+.leaflet-control-attribution { font-size: 9px; }
+@media (max-width: 850px) { body { overflow: auto; } .topbar { height: 64px; padding: 0 18px; } main { grid-template-columns: 1fr; grid-template-rows: 48vh auto; height: auto; } .vehicle-panel { min-height: 52vh; } .hero-copy { top: 30px; left: 24px; } .hero-copy h1 { font-size: 44px; } .vehicle-list { max-height: none; } }
+@media (max-width: 480px) { .topbar-status .divider, #clock { display: none; } .panel-heading { padding-inline: 20px; } .legend { grid-template-columns: 54px 1fr 94px; padding-inline: 20px; } .vehicle-card { grid-template-columns: 45px 1fr 90px 7px; gap: 9px; padding-inline: 20px 12px; } .panel-footer { padding-inline: 18px; } }

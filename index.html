@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0c1722" />
+    <title>SWU Livekarte</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="SWU Livekarte Startseite">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>SWU</strong><small>LIVEKARTE</small></span>
+      </a>
+      <div class="topbar-status">
+        <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+        <span id="connection-label">Verbinde …</span>
+        <span class="divider"></span>
+        <span id="clock">--:--:--</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="map-shell" aria-label="Karte aktiver Fahrzeuge">
+        <div id="map"></div>
+        <div class="map-wash" aria-hidden="true"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">Ulm · Neu-Ulm</p>
+          <h1>Unterwegs.<br /><em>Jetzt.</em></h1>
+          <p id="summary">Aktive Fahrzeuge werden geladen.</p>
+        </div>
+        <button id="locate" class="locate" type="button" title="Karte auf Ulm zentrieren" aria-label="Karte auf Ulm zentrieren">⌖</button>
+      </section>
+
+      <aside class="vehicle-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Live-Flotte</p>
+            <h2>Fahrzeuge <span id="vehicle-count">0</span></h2>
+          </div>
+          <button id="refresh" class="refresh" type="button">↻ <span>Aktualisieren</span></button>
+        </div>
+        <div class="legend"><span>Linie</span><span>Fahrzeug &amp; nächste Haltestelle</span><span>Ziel</span></div>
+        <div id="message" class="message" hidden></div>
+        <div id="vehicles" class="vehicle-list" aria-live="polite" aria-busy="true"></div>
+        <div class="panel-footer">
+          <span>Fahrzeugliste alle 60 Sek.</span>
+          <span>Details alle 10 Sek.</span>
+        </div>
+      </aside>
+    </main>
+
+    <template id="vehicle-template">
+      <article class="vehicle-card" tabindex="0">
+        <span class="line-badge"></span>
+        <div class="vehicle-info">
+          <strong class="vehicle-number"></strong>
+          <span class="next-stop"><i aria-hidden="true"></i><span></span></span>
+        </div>
+        <div class="destination"><small>Fahrtziel</small><strong></strong></div>
+        <span class="chevron">›</span>
+      </article>
+    </template>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
